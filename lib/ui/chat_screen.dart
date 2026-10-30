@@ -7,11 +7,14 @@ import '../agent/fixam_agent.dart';
 import '../agent/fixam_model.dart';
 import '../agent/fixam_tools.dart';
 import '../data/ticket_repository.dart';
+import '../models/ticket.dart';
 import 'bubbles.dart';
 import 'chat_items.dart';
+import 'draft_dialog.dart';
 import 'ticket_card.dart';
 
-/// Lesson 4: the chat now talks to an agent that uses tools.
+/// The chat talks to an agent that uses tools (lesson 4) and asks the
+/// student before it writes anything (lesson 5).
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.repo});
 
@@ -39,6 +42,8 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     final tools = FixAmTools(
       repo: widget.repo,
+      confirmDraft: _confirmDraft,
+      confirm: _confirm,
       photoUrl: () => _photoUrl,
       onTicket: (ticket) => _add(TicketItem(ticket)),
     );
@@ -47,6 +52,39 @@ class _ChatScreenState extends State<ChatScreen> {
       tools: tools,
       onToolCall: (name) => _add(ToolItem(name)),
     );
+  }
+
+  /// Human in the loop: the agent loop waits here until the student answers.
+  Future<bool> _confirmDraft(TicketDraft draft) async {
+    if (!mounted) return false;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => DraftDialog(draft: draft),
+    );
+    return ok ?? false;
+  }
+
+  Future<bool> _confirm(String question) async {
+    if (!mounted) return false;
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        content: Text(question),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
   }
 
   void _add(ChatItem item) {

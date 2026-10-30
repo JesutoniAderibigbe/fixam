@@ -9,10 +9,28 @@ void main() {
   final now = DateTime(2026, 11, 1, 9);
   late FakeTicketRepository repo;
   late FixAmTools tools;
+  late bool studentSaysYes;
+  late int questionsAsked;
+
+  FixAmTools buildTools({String? photo}) => FixAmTools(
+        repo: repo,
+        clock: () => now,
+        photoUrl: () => photo,
+        confirmDraft: (_) async {
+          questionsAsked++;
+          return studentSaysYes;
+        },
+        confirm: (_) async {
+          questionsAsked++;
+          return studentSaysYes;
+        },
+      );
 
   setUp(() {
     repo = FakeTicketRepository(seed: [seedTicket()]);
-    tools = FixAmTools(repo: repo, clock: () => now);
+    studentSaysYes = true;
+    questionsAsked = 0;
+    tools = buildTools();
   });
 
   group('search_open_tickets', () {
@@ -42,11 +60,7 @@ void main() {
 
   group('create_ticket', () {
     test('creates a ticket with the attached photo', () async {
-      tools = FixAmTools(
-        repo: repo,
-        clock: () => now,
-        photoUrl: () => 'https://example.com/socket.jpg',
-      );
+      tools = buildTools(photo: 'https://example.com/socket.jpg');
       final result = await tools.handle(FunctionCall('create_ticket', {
         'hall': 'Mellanby',
         'block': 'b',
@@ -60,6 +74,21 @@ void main() {
       expect(created.block, 'B');
       expect(created.room, 'B07');
       expect(created.photoUrl, 'https://example.com/socket.jpg');
+      expect(questionsAsked, 1);
+    });
+
+    test('writes nothing when the student says no', () async {
+      studentSaysYes = false;
+      final result = await tools.handle(FunctionCall('create_ticket', {
+        'hall': 'Mellanby',
+        'block': 'B',
+        'room': 'B07',
+        'category': 'electrical',
+        'urgency': 'medium',
+        'description': 'Socket beside the bed has no power.',
+      }));
+      expect(result['status'], 'cancelled_by_student');
+      expect(repo.tickets, hasLength(1)); // only the seed ticket
     });
 
     test('refuses a ticket with no room, so Gemini asks the student', () {
@@ -101,6 +130,28 @@ void main() {
     await tools.handle(FunctionCall('add_me_too', {'ticketId': 'leak'}));
     final mine = await tools.handle(FunctionCall('get_my_tickets', {'onlyOpen': true}));
     expect(mine['count'], 1);
+  });
+
+  group('escalate_ticket', () {
+    test('asks first, then escalates', () async {
+      final result = await tools.handle(FunctionCall('escalate_ticket', {
+        'ticketId': 'leak',
+        'reason': 'Flooding for two hours.',
+      }));
+      expect(result['status'], 'escalated');
+      expect(questionsAsked, 1);
+      expect(repo.escalations['leak'], 'Flooding for two hours.');
+    });
+
+    test('does nothing when the student says no', () async {
+      studentSaysYes = false;
+      final result = await tools.handle(FunctionCall('escalate_ticket', {
+        'ticketId': 'leak',
+        'reason': 'Flooding for two hours.',
+      }));
+      expect(result['status'], 'cancelled_by_student');
+      expect(repo.escalations, isEmpty);
+    });
   });
 
   test('an unknown tool is a loud error', () {
