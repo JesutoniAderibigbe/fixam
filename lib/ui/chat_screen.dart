@@ -1,16 +1,21 @@
 import 'dart:typed_data';
 
-import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../agent/fixam_agent.dart';
 import '../agent/fixam_model.dart';
+import '../agent/fixam_tools.dart';
+import '../data/ticket_repository.dart';
 import 'bubbles.dart';
 import 'chat_items.dart';
+import 'ticket_card.dart';
 
-/// Lesson 3: the chatbot can now see photos.
+/// Lesson 4: the chat now talks to an agent that uses tools.
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, required this.repo});
+
+  final TicketRepository repo;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -18,12 +23,45 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _items = <ChatItem>[
-    const AgentItem('Hi, I am FixAm. What is broken in your hostel?'),
+    const AgentItem('Hi, I am FixAm. Snap the problem and tell me your hall, '
+        'block and room. I will handle the rest.'),
   ];
   final _input = TextEditingController();
-  final _chat = buildChatbotModel().startChat();
+  final _scroll = ScrollController();
+  late final FixAmAgent _agent;
+
   bool _busy = false;
   Uint8List? _photo; // attached, not sent yet
+  String? _photoUrl; // the last photo, uploaded, for create_ticket
+
+  @override
+  void initState() {
+    super.initState();
+    final tools = FixAmTools(
+      repo: widget.repo,
+      photoUrl: () => _photoUrl,
+      onTicket: (ticket) => _add(TicketItem(ticket)),
+    );
+    _agent = FixAmAgent(
+      model: buildFixAmModel(),
+      tools: tools,
+      onToolCall: (name) => _add(ToolItem(name)),
+    );
+  }
+
+  void _add(ChatItem item) {
+    if (!mounted) return;
+    setState(() => _items.add(item));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
   Future<void> _pickPhoto(ImageSource source) async {
     final file = await ImagePicker()
@@ -33,8 +71,8 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _photo = bytes);
   }
 
-  Future<void> _send() async {
-    final typed = _input.text.trim();
+  Future<void> _send([String? preset]) async {
+    final typed = (preset ?? _input.text).trim();
     final photo = _photo;
     if ((typed.isEmpty && photo == null) || _busy) return;
     final text = typed.isEmpty ? 'Here is a photo of the problem.' : typed;
@@ -42,17 +80,14 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() {
       _busy = true;
       _photo = null;
-      _items.add(UserItem(text, photo: photo));
     });
+    _add(UserItem(text, photo: photo));
     try {
-      // One message, two parts: the words and the picture.
-      final response = await _chat.sendMessage(Content.multi([
-        TextPart(text),
-        if (photo != null) InlineDataPart('image/jpeg', photo),
-      ]));
-      setState(() => _items.add(AgentItem(response.text ?? '')));
+      if (photo != null) _photoUrl = await widget.repo.uploadPhoto(photo);
+      final reply = await _agent.send(text, photo: photo);
+      if (reply.trim().isNotEmpty) _add(AgentItem(reply));
     } catch (e) {
-      setState(() => _items.add(ErrorItem('Something went wrong: $e')));
+      _add(ErrorItem('Something went wrong: $e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -61,29 +96,42 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _input.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('FixAm')),
+      appBar: AppBar(
+        title: const Text('FixAm'),
+        actions: [
+          IconButton(
+            onPressed: _busy ? null : () => _send('Show my open tickets'),
+            icon: const Icon(Icons.receipt_long_outlined),
+            tooltip: 'My tickets',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
-            child: ListView(
+            child: ListView.builder(
+              controller: _scroll,
               padding: const EdgeInsets.all(16),
-              children: [
-                for (final item in _items)
-                  switch (item) {
-                    UserItem(:final text, :final photo) =>
-                      Bubble(text: text, mine: true, photo: photo),
-                    AgentItem(:final text) => Bubble(text: text, mine: false),
-                    ErrorItem(:final text) => Text(text,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                    _ => const SizedBox.shrink(),
-                  },
-              ],
+              itemCount: _items.length,
+              itemBuilder: (context, i) => switch (_items[i]) {
+                UserItem(:final text, :final photo) =>
+                  Bubble(text: text, mine: true, photo: photo),
+                AgentItem(:final text) => Bubble(text: text, mine: false),
+                ToolItem(:final toolName) => _ToolChip(toolName: toolName),
+                TicketItem(:final ticket) => TicketCard(ticket: ticket),
+                ErrorItem(:final text) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(text, style: TextStyle(color: scheme.error)),
+                  ),
+              },
             ),
           ),
           if (_busy) const LinearProgressIndicator(),
@@ -125,11 +173,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   Expanded(
                     child: TextField(
                       controller: _input,
+                      minLines: 1,
+                      maxLines: 4,
                       decoration: const InputDecoration(
-                        hintText: 'Describe the problem',
+                        hintText: 'What is broken, and where?',
                         border: OutlineInputBorder(),
                       ),
-                      onSubmitted: (_) => _send(),
                     ),
                   ),
                   IconButton.filled(
@@ -142,6 +191,35 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ToolChip extends StatelessWidget {
+  const _ToolChip({required this.toolName});
+
+  final String toolName;
+
+  static const _labels = {
+    'search_open_tickets': 'Checking for existing tickets',
+    'create_ticket': 'Drafting a ticket',
+    'add_me_too': 'Adding you to the ticket',
+    'get_my_tickets': 'Looking up your tickets',
+    'escalate_ticket': 'Escalating to the warden',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Chip(
+          avatar: const Icon(Icons.build_circle_outlined, size: 18),
+          label: Text(_labels[toolName] ?? toolName),
+          visualDensity: VisualDensity.compact,
+        ),
       ),
     );
   }

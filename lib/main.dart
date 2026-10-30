@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 // Created on your machine by `flutterfire configure` (not in git).
+import 'data/firestore_ticket_repository.dart';
 import 'firebase_options.dart';
 import 'ui/chat_screen.dart';
 
@@ -27,7 +28,7 @@ class FixAmApp extends StatelessWidget {
     return MaterialApp(
       title: 'FixAm',
       theme: ThemeData(colorSchemeSeed: const Color(0xFF4285F4)),
-      home: const ChatScreen(),
+      home: ChatScreen(repo: FirestoreTicketRepository()),
     );
   }
 }
