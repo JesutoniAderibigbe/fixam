@@ -1,0 +1,21 @@
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+.DS_Store
+# Platform folders are generated with `flutter create .` (see README)
+android/
+ios/
+web/
+linux/
+macos/
+windows/
+# Generated per student by `flutterfire configure`
+lib/firebase_options.dart
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+firebase.json
+.firebaserc
