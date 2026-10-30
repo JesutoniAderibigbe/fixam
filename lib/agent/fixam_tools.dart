@@ -112,6 +112,16 @@ class FixAmTools {
   Future<Map<String, Object?>> _escalate(String ticketId, String reason) async {
     final t = await repo.byId(ticketId);
     if (t == null) return {'error': 'No ticket with id $ticketId.'};
+
+    // Guardrail: the warden hears about a ticket at most once a day.
+    final last = t.escalatedAt;
+    if (last != null && _clock().difference(last) < const Duration(hours: 24)) {
+      return {
+        'error': '${t.code} was already escalated in the last 24 hours. '
+            'Tell the student the warden has it.',
+      };
+    }
+
     if (!await confirm('Send ${t.code} to the hall warden?\n\nReason: $reason')) {
       return {'status': 'cancelled_by_student'};
     }

@@ -18,9 +18,9 @@ Fell behind? `git checkout` the next branch and keep going.
 | `01-firebase` | Firebase packages, rules, models, Firestore repository |
 | `02-chatbot` | A plain Gemini chat. It talks, nothing more |
 | `03-eyes` | Photos go to Gemini with the message |
-| `04-tools-and-loop` | Five tools, the agent loop, unit tests |
-| `05-human-in-loop` | Draft ticket card and confirm dialogs, ticket cards in chat |
-| `06-guardrails` | App Check, safety rules in the instruction, escalation limit |
+| `04-tools-and-loop` | Five tools, the agent loop, tool chips, ticket cards, unit tests |
+| `05-human-in-loop` | Draft ticket dialog, and a confirm before escalating |
+| `06-guardrails` | App Check, safety and scope rules in the instruction, once-a-day escalation |
 | `07-warden-mcp` | docs/WARDEN.md: the warden's agent reads tickets through Firebase MCP |
 
 `main` equals `07-warden-mcp`.

@@ -15,7 +15,7 @@ dependencies:
   firebase_storage: ^13.0.0
   # Gemini through Firebase AI Logic. No API key ships in the app.
   firebase_ai: ^3.0.0
-  firebase_app_check: ^0.4.0
+  firebase_app_check: ^0.4.5
   image_picker: ^1.1.2
 
 dev_dependencies:

@@ -152,6 +152,19 @@ void main() {
       expect(result['status'], 'cancelled_by_student');
       expect(repo.escalations, isEmpty);
     });
+
+    test('refuses a second escalation within 24 hours, without asking', () async {
+      repo = FakeTicketRepository(seed: [
+        seedTicket(escalatedAt: now.subtract(const Duration(hours: 3))),
+      ]);
+      tools = buildTools();
+      final result = await tools.handle(FunctionCall('escalate_ticket', {
+        'ticketId': 'leak',
+        'reason': 'Still flooding.',
+      }));
+      expect(result['error'], contains('already escalated'));
+      expect(questionsAsked, 0);
+    });
   });
 
   test('an unknown tool is a loud error', () {
