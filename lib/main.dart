@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 // Created on your machine by `flutterfire configure` (not in git).
 import 'firebase_options.dart';
+import 'ui/chat_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,15 +27,7 @@ class FixAmApp extends StatelessWidget {
     return MaterialApp(
       title: 'FixAm',
       theme: ThemeData(colorSchemeSeed: const Color(0xFF4285F4)),
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            'FixAm\nFirebase is connected.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 24),
-          ),
-        ),
-      ),
+      home: const ChatScreen(),
     );
   }
 }
