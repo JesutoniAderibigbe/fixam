@@ -17,7 +17,7 @@ void main() {
 
   group('search_open_tickets', () {
     test('finds the open leak, even with messy hall and block names', () async {
-      final result = await tools.handle(const FunctionCall('search_open_tickets', {
+      final result = await tools.handle(FunctionCall('search_open_tickets', {
         'hall': 'independence hall',
         'block': 'block c',
         'category': 'plumbing',
@@ -30,7 +30,7 @@ void main() {
 
     test('rejects a category that does not exist', () {
       expect(
-        tools.handle(const FunctionCall('search_open_tickets', {
+        tools.handle(FunctionCall('search_open_tickets', {
           'hall': 'Independence',
           'block': 'C',
           'category': 'magic',
@@ -47,7 +47,7 @@ void main() {
         clock: () => now,
         photoUrl: () => 'https://example.com/socket.jpg',
       );
-      final result = await tools.handle(const FunctionCall('create_ticket', {
+      final result = await tools.handle(FunctionCall('create_ticket', {
         'hall': 'Mellanby',
         'block': 'b',
         'room': 'b07',
@@ -64,7 +64,7 @@ void main() {
 
     test('refuses a ticket with no room, so Gemini asks the student', () {
       expect(
-        tools.handle(const FunctionCall('create_ticket', {
+        tools.handle(FunctionCall('create_ticket', {
           'hall': 'Mellanby',
           'block': 'B',
           'room': '',
@@ -79,32 +79,32 @@ void main() {
 
   group('add_me_too', () {
     test('adds the student once, and reports a second try', () async {
-      final first = await tools.handle(const FunctionCall('add_me_too', {'ticketId': 'leak'}));
+      final first = await tools.handle(FunctionCall('add_me_too', {'ticketId': 'leak'}));
       expect(first['status'], 'added');
       expect(first['reportCount'], 2);
 
-      final again = await tools.handle(const FunctionCall('add_me_too', {'ticketId': 'leak'}));
+      final again = await tools.handle(FunctionCall('add_me_too', {'ticketId': 'leak'}));
       expect(again['status'], 'already_reported');
       expect(again['reportCount'], 2);
     });
 
     test('three reports make it high urgency', () async {
-      await tools.handle(const FunctionCall('add_me_too', {'ticketId': 'leak'}));
+      await tools.handle(FunctionCall('add_me_too', {'ticketId': 'leak'}));
       repo.uid = 'student-2';
-      final third = await tools.handle(const FunctionCall('add_me_too', {'ticketId': 'leak'}));
+      final third = await tools.handle(FunctionCall('add_me_too', {'ticketId': 'leak'}));
       expect(third['reportCount'], 3);
       expect(third['urgency'], 'high');
     });
   });
 
   test('get_my_tickets lists only my tickets', () async {
-    await tools.handle(const FunctionCall('add_me_too', {'ticketId': 'leak'}));
-    final mine = await tools.handle(const FunctionCall('get_my_tickets', {'onlyOpen': true}));
+    await tools.handle(FunctionCall('add_me_too', {'ticketId': 'leak'}));
+    final mine = await tools.handle(FunctionCall('get_my_tickets', {'onlyOpen': true}));
     expect(mine['count'], 1);
   });
 
   test('an unknown tool is a loud error', () {
-    expect(tools.handle(const FunctionCall('order_pizza', {})), throwsArgumentError);
+    expect(tools.handle(FunctionCall('order_pizza', {})), throwsArgumentError);
   });
 
   test('urgencyAfterReports', () {
