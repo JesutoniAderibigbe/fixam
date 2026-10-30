@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /tickets/{ticketId} {
+
+      // Any signed-in student can read tickets. The agent needs this to
+      // find duplicates before it files a new one.
+      allow read: if request.auth != null;
+
+      // Create: you must be the only reporter, and the shape must be valid.
+      allow create: if request.auth != null
+        && request.resource.data.reporters == [request.auth.uid]
+        && request.resource.data.reportCount == 1
+        && request.resource.data.status == 'open'
+        && request.resource.data.category
+             in ['plumbing', 'electrical', 'carpentry', 'cleaning', 'other']
+        && request.resource.data.urgency in ['low', 'medium', 'high']
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 300;
+
+      // "Me too": add yourself to reporters and nothing else.
+      // Urgency may only go up to high (three or more reporters).
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['reporters', 'reportCount', 'urgency', 'updatedAt'])
+        && !(request.auth.uid in resource.data.reporters)
+        && request.resource.data.reporters.hasAll(resource.data.reporters)
+        && request.auth.uid in request.resource.data.reporters
+        && request.resource.data.reporters.size() == resource.data.reporters.size() + 1
+        && request.resource.data.reportCount == resource.data.reportCount + 1
+        && (request.resource.data.urgency == resource.data.urgency
+            || request.resource.data.urgency == 'high');
+
+      // Escalate: only someone who reported it, at most once per 24 hours.
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.reporters
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['escalatedAt', 'escalationReason', 'updatedAt'])
+        && (resource.data.get('escalatedAt', null) == null
+            || request.time > resource.data.escalatedAt + duration.value(1, 'd'));
+
+      // Status changes (open, assigned, fixed) come from wardens, who use
+      // admin access through Firebase MCP. No client deletes.
+      allow delete: if false;
+    }
+  }
+}
